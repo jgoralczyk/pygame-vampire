@@ -109,6 +109,7 @@ player = Player(IMAGES['player'],WIDTH//2,HEIGHT//2)
 camera_x = player.map_x - WIDTH // 2
 camera_y = player.map_y - HEIGHT // 2
 
+
 window_open = True
 while window_open:
     
@@ -131,6 +132,7 @@ while window_open:
     camera_x += (player.rect.centerx - WIDTH // 2)
     # ruch gracza to ruch kamery pion
     camera_y += (player.rect.centery - HEIGHT // 2)
+    
 
     screen.fill((0, 0, 0))
     draw_tile_map(screen, camera_x, camera_y)
