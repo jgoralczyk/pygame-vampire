@@ -19,24 +19,48 @@ class Player(pygame.sprite.Sprite):
         super().__init__()
         self.image = image
         self.rect = self.image.get_rect(center=(cx, cy))
+        self.map_x = cx
+        self.map_y = cy
         self.speed = 4
     
     def draw(self, surface):
         surface.blit(self.image, self.rect)
 
-    def update(self, key_pressed):
+    def update(self, key_pressed, camera_x, camera_y):
         self._get_event(key_pressed)
-
+        self.rect.center = (self.map_x - camera_x, self.map_y - camera_y)
     
     def _get_event(self, key_pressed):
         if key_pressed[pygame.K_LEFT]:
-            self.rect.x -= self.speed
+            self.map_x -= self.speed
         if key_pressed[pygame.K_RIGHT]:
-            self.rect.x += self.speed
+            self.map_x += self.speed
         if key_pressed[pygame.K_UP]:
-            self.rect.y -= self.speed
+            self.map_y -= self.speed
         if key_pressed[pygame.K_DOWN]:
-            self.rect.y += self.speed
+            self.map_y += self.speed
+
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self,image,x,y):
+        super().__init__()
+        self.image = image
+        self.rect = self.image.get_rect(center=(x,y))
+        self.speed = 1.5
+        
+    def draw(self,surface, camera_x, camera_y):
+        surface.blit(self.image,(self.rect.x - camera_x, self.rect.y - camera_y))
+
+    def update(self, player_pos):
+        dx = player_pos[0] - self.rect.centerx
+        dy = player_pos[1] - self.rect.centery
+        distance = (dx**2 + dy**2) ** 0.5
+
+        if distance != 0:
+            dx /= distance
+            dy /= distance
+        
+        self.rect.x += dx * self.speed
+        self.rect.y += dy * self.speed
 
 TILE_SIZE = 32
 tile_images = {
@@ -45,6 +69,7 @@ tile_images = {
     2: IMAGES['Tile_03'],
 }
 
+#przygotowanie macierzy mapy
 tile_map = [
     [random.randint(0,2) for _ in range(200)]
     for _ in range(200)
@@ -53,7 +78,14 @@ tile_map = [
 MAP_WIDTH = len(tile_map[0])
 MAP_HEIGHT = len(tile_map)
 
-def draw_tile_map(sruface, camera_x, camera_y):
+#przygotowanie przeciwników
+enemies = pygame.sprite.Group()
+for _ in range(11):
+    x = random.randint(0,MAP_WIDTH * TILE_SIZE)
+    y = random.randint(0,MAP_HEIGHT * TILE_SIZE)
+    enemies.add(Enemy(IMAGES['enemy3'], x, y))
+
+def draw_tile_map(surface, camera_x, camera_y):
     rows = len(tile_map)
     cols = len(tile_map[0])
     
@@ -72,9 +104,10 @@ def draw_tile_map(sruface, camera_x, camera_y):
             screen.blit(tile_img, (i * TILE_SIZE + offset_x, j * TILE_SIZE + offset_y))
 
 player = Player(IMAGES['player'],WIDTH//2,HEIGHT//2)
+#enemy = Enemy(IMAGES['enemy3'],100,100)
 
-camera_x = 0
-camera_y = 0
+camera_x = player.map_x - WIDTH // 2
+camera_y = player.map_y - HEIGHT // 2
 
 window_open = True
 while window_open:
@@ -86,25 +119,27 @@ while window_open:
                 window_open = False
         if event.type == pygame.QUIT:
             window_open = False
+    
+    #chodzenie stworow
+    for enemy in enemies:
+        enemy.update((player.map_x, player.map_y))
 
     key_pressed = pygame.key.get_pressed()
-    player.update(key_pressed)
+    player.update(key_pressed, camera_x, camera_y)
 
-    # Kamera przesuwa się razem z graczem w poziomie (endless scroll)
+    # ruch gracza to ruch kamery poziom
     camera_x += (player.rect.centerx - WIDTH // 2)
-    player.rect.centerx = WIDTH // 2  # Trzymaj gracza w środku
-
-    # Kamera pionowa: przesuń tło gdy gracz się rusza
+    # ruch gracza to ruch kamery pion
     camera_y += (player.rect.centery - HEIGHT // 2)
-    player.rect.centery = HEIGHT // 2  # Trzymaj gracza na środku Y
 
     screen.fill((0, 0, 0))
     draw_tile_map(screen, camera_x, camera_y)
     player.draw(screen)
+    for enemy in enemies:
+        enemy.draw(screen, camera_x, camera_y)
 
     #aktualizacja okna
     pygame.display.flip()
     clock.tick(60)
 
 pygame.quit()
-    
