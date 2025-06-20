@@ -1,5 +1,8 @@
 import pygame, os, random
 
+
+pygame.font.init()
+
 SIZESCREEN = WIDTH, HEIGHT = 1920, 1080
 screen = pygame.display.set_mode(SIZESCREEN)
 clock = pygame.time.Clock()
@@ -22,23 +25,29 @@ class Player(pygame.sprite.Sprite):
         self.map_x = cx
         self.map_y = cy
         self.speed = 4
-    
+
+        self.rect = self.image.get_rect()
+
     def draw(self, surface):
         surface.blit(self.image, self.rect)
 
-    def update(self, key_pressed, camera_x, camera_y):
-        self._get_event(key_pressed)
-        self.rect.center = (self.map_x - camera_x, self.map_y - camera_y)
+    def update(self, keys):
+        if keys[pygame.K_LEFT]:
+            self.map_x -= self.speed
+        if keys[pygame.K_RIGHT]:
+            self.map_x += self.speed
+        if keys[pygame.K_UP]:
+            self.map_y -= self.speed
+        if keys[pygame.K_DOWN]:
+            self.map_y += self.speed
     
     def _get_event(self, key_pressed):
-        if key_pressed[pygame.K_LEFT]:
-            self.map_x -= self.speed
-        if key_pressed[pygame.K_RIGHT]:
-            self.map_x += self.speed
-        if key_pressed[pygame.K_UP]:
-            self.map_y -= self.speed
-        if key_pressed[pygame.K_DOWN]:
-            self.map_y += self.speed
+        pass
+
+    # liczymy ekranową pozycje gracza
+    def sync_rect(self, camera_x, camera_y):
+        self.rect.centerx = self.map_x - camera_x
+        self.rect.centery = self.map_y - camera_y
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self,image,x,y):
@@ -109,6 +118,7 @@ player = Player(IMAGES['player'],WIDTH//2,HEIGHT//2)
 camera_x = player.map_x - WIDTH // 2
 camera_y = player.map_y - HEIGHT // 2
 
+my_font = pygame.font.SysFont('Comic Sans MS', 30)
 
 window_open = True
 while window_open:
@@ -126,16 +136,22 @@ while window_open:
         enemy.update((player.map_x, player.map_y))
 
     key_pressed = pygame.key.get_pressed()
-    player.update(key_pressed, camera_x, camera_y)
+    player.update(key_pressed)
 
-    # ruch gracza to ruch kamery poziom
-    camera_x += (player.rect.centerx - WIDTH // 2)
-    # ruch gracza to ruch kamery pion
-    camera_y += (player.rect.centery - HEIGHT // 2)
+    player.sync_rect(camera_x, camera_y)
     
+    # Przesunięcie kamery by "dogonić" gracza
+    camera_x += player.rect.centerx - WIDTH // 2
+    camera_y += player.rect.centery - HEIGHT // 2
+    
+    # Po zmianie kamery przeliczamy pozycje gracza względem nowego widoku
+    player.sync_rect(camera_x, camera_y)
+
+    text_surface = my_font.render(f'x: {player.map_x}, y: {player.map_y}', False, (0, 0, 0))
 
     screen.fill((0, 0, 0))
     draw_tile_map(screen, camera_x, camera_y)
+    screen.blit(text_surface, (0,0))
     player.draw(screen)
     for enemy in enemies:
         enemy.draw(screen, camera_x, camera_y)
