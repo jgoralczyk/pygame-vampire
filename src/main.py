@@ -36,6 +36,9 @@ class Player(pygame.sprite.Sprite):
         self.maxhp = 80
         self.curhp = self.maxhp
         self.armor = 0
+        #strzały
+        self.last_shot_time = 0
+        self.shoot_cooldown = 2000
 
         self.rect = self.image.get_rect()
 
@@ -63,6 +66,20 @@ class Player(pygame.sprite.Sprite):
     def get_mask_topleft(self):
         return (self.map_x - self.rect.width // 2, self.map_y - self.rect.height // 2)
 
+    def auto_shoot(self, enemies, projectiles):
+        now = pygame.time.get_ticks()
+        if now - self.last_shot_time < self.shoot_cooldown:
+            return
+
+        if not enemies:
+            return
+
+        # znajdź najbliższego wroga
+        nearest_enemy = min(enemies, key=lambda e: (e.map_x - self.map_x)**2 + (e.map_y - self.map_y)**2)
+        bullet = Projectile(self.map_x, self.map_y, nearest_enemy.map_x, nearest_enemy.map_y)
+        projectiles.add(bullet)
+        self.last_shot_time = now
+    
 class Enemy(pygame.sprite.Sprite):
     def __init__(self,image,x,y):
         super().__init__()
@@ -89,13 +106,38 @@ class Enemy(pygame.sprite.Sprite):
         self.map_y += dy * self.speed
         self.rect.centerx = self.map_x
         self.rect.centery = self.map_y
-    
-    def sync_rect(self, camera_x, camera_y):
-        self.rect.centerx = self.map_x - camera_x
-        self.rect.centery = self.map_y - camera_y
 
     def get_mask_topleft(self):
         return (self.map_x - self.rect.width // 2, self.map_y - self.rect.height // 2)
+
+
+class Projectile(pygame.sprite.Sprite):
+    def __init__(self, x, y, target_x, target_y, color= RED, radius = 10, speed = 10):
+        super().__init__()
+        self.color = color
+        self.radius = radius
+        self.map_x = x
+        self.map_y = y
+        self.speed = speed
+        
+        # Oblicz kierunek do celu
+        dx = target_x - x
+        dy = target_y - y
+        distance = max((dx ** 2 + dy ** 2) ** 0.5, 0.01)
+        self.dx = dx / distance
+        self.dy = dy / distance
+        
+        self.rect = pygame.Rect(x, y, radius*2, radius*2)
+    
+    def update(self):
+        self.map_x += self.dx * self.speed
+        self.map_y += self.dy * self.speed
+        self.rect.center = (self.map_x, self.map_y)
+    
+    def draw(self,surface, camera_x, camera_y):
+        pygame.draw.circle(surface, self.color, (int(self.rect.x - camera_x), int(self.rect.y - camera_y)), self.radius)
+    
+    
 
 TILE_SIZE = 32
 tile_images = {
@@ -142,6 +184,9 @@ players = pygame.sprite.Group()
 player = Player(IMAGES['player'],WIDTH//2,HEIGHT//2)
 players.add(player)
 #enemy = Enemy(IMAGES['enemy3'],100,100)
+projectiles = pygame.sprite.Group()
+fire_counter = 0
+
 
 
 def mask_collision(s1, s2):
@@ -169,6 +214,8 @@ while window_open:
 
     key_pressed = pygame.key.get_pressed()
     player.update(key_pressed)
+    
+    player.auto_shoot(enemies, projectiles)
 
     player.sync_rect(camera_x, camera_y)
     
@@ -179,6 +226,7 @@ while window_open:
         if mask_collision(player, enemy):
             enemy.update((player.map_x, player.map_y))
             print("przeciwnik kolizja")
+            player.curhp -= 0.1
         else:
             enemy.update((player.map_x, player.map_y))
 
@@ -202,13 +250,23 @@ while window_open:
     screen.blit(text_surface2, (250,0))
     player.draw(screen)
 
+
     for enemy in enemies:
         enemy.draw(screen, camera_x, camera_y)
+        
+    projectiles.update()
+    
+    for projectile in projectiles:
+        projectile.draw(screen, camera_x, camera_y)
+        for enemy in enemies:
+            if pygame.Rect.colliderect(projectile.rect, enemy.rect):
+                enemies.remove(enemy)
+                projectiles.remove(projectile)
+                break
     
     pygame.draw.rect(screen, "red", (player.rect.centerx - 40, player.rect.centery + 20, 80, 10))
     pygame.draw.rect(screen, "green", (player.rect.centerx - 40, player.rect.centery + 20, player.curhp , 10))
-    if player.curhp != 0:
-        player.curhp -= 0.1
+    
 
 
     #aktualizacja okna
